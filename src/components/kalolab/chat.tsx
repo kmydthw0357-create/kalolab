@@ -78,8 +78,7 @@ export function Chat({ profile }: { profile: Profile | null }) {
                 {t}
               </Button>
             ))}
-          </div>
-    
+          </div>   
 {tab === "Chuyên gia" && (
   <div className="expert-contact-card mx-3 my-3 rounded-xl border p-4">
     <div className="expert-profile flex items-center gap-3">
