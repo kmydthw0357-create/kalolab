@@ -28,3 +28,8 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## App architecture
+- Keep the catalog and pure pricing/nutrition/reward rules in `src/lib/kalolab.ts` and test the rules directly so UI screens share one source of truth.
+- This explicitly browser-only prototype uses a validated versioned localStorage store and client-side demo accounts; it makes no real payments, deliveries, expert contacts, or remote authentication. Never present simulated operations as real services.
+- Use focused Kalolab UI modules, the existing Button/Dialog controls, and global semantic tokens so all views share accessible controls and a consistent visual language.

@@ -9,6 +9,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        nav: "period-tab",
+        filter: "filter-button",
+        add: "add-button",
+        foodTitle: "meal-title",
+        foodImage: "meal-image-button",
+        star: "star-button",
         default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline:
@@ -37,10 +43,15 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, type = "button", ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...(asChild ? {} : { type })}
+        {...props}
+      />
     );
   },
 );
