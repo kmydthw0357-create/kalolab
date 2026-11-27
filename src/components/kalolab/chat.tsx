@@ -79,99 +79,85 @@ export function Chat({ profile }: { profile: Profile | null }) {
               </Button>
             ))}
           </div>
-          {tab === "Chuyên gia" && (
-            <div className="expert-profile">
-              <div className="avatar">
-                <UserRound />
-              </div>
-              <div>
-                <strong>ThS. Ngọc Anh</strong>
-                <small>Chuyên gia dinh dưỡng · Hồ sơ minh họa</small>
-                <small className="text-primary">Trực tuyến (mô phỏng)</small>
-              </div>
-            </div>
-          )}
-          <div className="chat-messages" ref={list}>
-            {(tab === "AI Kalolab" ? ai : expert).map((m, i) => (
-              <p key={i} className={`chat-message ${m.user ? "user" : ""}`}>
-                {m.text}
-              </p>
-            ))}
-          </div>
-          {tab === "Chuyên gia" && (
-            <Button
-              className="mx-3 mb-2"
-              variant="outline"
-              size="sm"
-              onClick={() => setBooking(true)}
-            >
-              <Calendar /> Đặt lịch tư vấn 1–1
-            </Button>
-          )}
-          <form
-            className="chat-input"
-            onSubmit={(e) => {
-              e.preventDefault();
-              send();
-            }}
-          >
-            <input
-              className="form-input"
-              aria-label="Tin nhắn"
-              placeholder="Nhắn Kalolab một chút…"
-              maxLength={1000}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-            />
-            <Button type="submit" size="icon" aria-label="Gửi tin nhắn">
-              <Send />
-            </Button>
-          </form>
-        </section>
-      )}
-      <Dialog open={booking} onOpenChange={setBooking}>
-        <DialogContent className="modal-scroll">
-          <DialogTitle className="modal-title">Lịch tư vấn dinh dưỡng</DialogTitle>
-          <DialogDescription>
-            Chọn lịch để trải nghiệm đặt hẹn. Chưa gửi đến chuyên gia thật.
-          </DialogDescription>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (date < localDay()) {
-                toast.error("Vui lòng chọn hôm nay hoặc ngày tới.");
-                return;
-              }
-              toast.success(`Đã ghi nhận lịch thử nghiệm: ${date} lúc ${time}.`);
-              setBooking(false);
-            }}
-          >
-            <label className="form-field">
-              <span>Ngày tư vấn</span>
-              <input
-                type="date"
-                className="form-input"
-                required
-                min={localDay()}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </label>
-            <label className="form-field">
-              <span>Khung giờ</span>
-              <select className="form-input" value={time} onChange={(e) => setTime(e.target.value)}>
-                {["09:00", "10:00", "14:00", "15:00", "16:00"].map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            </label>
-            <Button type="submit" className="w-full">
-              Xác nhận lịch thử nghiệm
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+    
+{tab === "Chuyên gia" && (
+  <div className="expert-contact-card mx-3 my-3 rounded-xl border p-4">
+    <div className="expert-profile flex items-center gap-3">
+      <div className="avatar overflow-hidden rounded-full">
+        <img
+          src="/expert-thien.jpg"
+          alt="Chuyên Gia Thiện"
+          className="h-full w-full rounded-full object-cover"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <strong>Chuyên Gia Thiện</strong>
+        <small>Chuyên gia tư vấn dinh dưỡng</small>
+        <small className="text-primary">
+          Liên hệ trực tiếp qua mạng xã hội
+        </small>
+      </div>
+    </div>
+
+    <div className="mt-4 flex flex-col gap-3">
+      <a
+        href="https://www.facebook.com/share/1ChHnMkdn5/?mibextid=wwXIfr"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-medium text-white"
+      >
+        Nhắn tin với Chuyên Gia Thiện qua Facebook
+      </a>
+
+      <a
+        href="https://www.instagram.com/tskc._vwnthjn?fqnt=MXF2YzcwNjNoYzVlag%3D%3D&utm_source=qr"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 rounded-lg border px-4 py-3 font-medium"
+      >
+        Liên hệ qua Instagram
+      </a>
+    </div>
+
+    <p className="mt-3 text-center text-sm text-muted-foreground">
+      Hãy kết nối với Chuyên Gia Thiện để được hỗ trợ và tư vấn.
+    </p>
+  </div>
+)}
+
+{tab === "AI Kalolab" && (
+  <>
+    <div className="chat-messages" ref={list}>
+      {ai.map((m, i) => (
+        <p
+          key={i}
+          className={`chat-message ${m.user ? "user" : ""}`}
+        >
+          {m.text}
+        </p>
+      ))}
+    </div>
+
+    <form
+      className="chat-input"
+      onSubmit={(e) => {
+        e.preventDefault();
+        send();
+      }}
+    >
+      <input
+        className="form-input"
+        aria-label="Tin nhắn"
+        placeholder="Nhắn Kalolab một chút…"
+        maxLength={1000}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+      />
+
+      <Button type="submit" size="icon" aria-label="Gửi tin nhắn">
+        <Send />
+      </Button>
+    </form>
+  </>
+)}
