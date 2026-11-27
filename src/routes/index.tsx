@@ -447,28 +447,32 @@ function Index() {
                 Bếp dinh dưỡng cá nhân hóa. Từ nguyên liệu tươi sạch đến những bữa ăn cân bằng,
                 Kalolab đồng hành cùng bạn trên hành trình sống khỏe.
               </p>
-              <div className="socials">
-                <Button asChild size="icon" variant="outline">
-                  <a
-                    href="https://www.facebook.com/"
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Facebook (chưa có trang Kalolab)"
-                  >
-                    <Facebook />
-                  </a>
-                </Button>
-                <Button asChild size="icon" variant="outline">
-                  <a
-                    href="https://www.instagram.com/"
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Instagram (chưa có trang Kalolab)"
-                  >
-                    <Instagram />
-                  </a>
-                </Button>
-              </div>
+            
+<div className="socials">
+  {/* Facebook */}
+  <Button asChild size="icon" variant="outline">
+    <a
+      href="https://www.facebook.com/share/1ChHnMkdn5/?mibextid=wwXIfr"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Facebook Kalolab"
+    >
+      <Facebook />
+    </a>
+  </Button>
+
+  {/* Instagram */}
+  <Button asChild size="icon" variant="outline">
+    <a
+      href="https://www.instagram.com/tskc._vwnthjn?fqnt=MXF2YzcwNjNoYzVlag%3D%3D&utm_source=qr"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Instagram Kalolab"
+    >
+      <Instagram />
+    </a>
+  </Button>
+</div>
             </div>
             <div>
               <h3>Ghé bếp Kalolab</h3>
