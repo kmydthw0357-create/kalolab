@@ -407,21 +407,104 @@ export type KalolabAIResponse = {
 };
 
 // Key chạy test trên Lovable Preview (nên chuyển sang backend / Edge Function và đổi key mới trước khi Publish công khai)
-const FALLBACK_DEV_KEY = "AQ.Ab8RN6K3MtXr7bP7anyRldtIllp0O5l0cW1Cyu_ORLfgbQsbIg";
+const callGeminiWithFallback = async (
+  geminiKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+  imageBase64?: string
+): Promise<{ text: string; usedModel: string }> => {
+  const MODELS = [
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+  ];
 
-const GEMINI_MODELS = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.8-flash",
-  "gemini-3.6-flash",
-  "gemini-2.5-flash",
-];
+  let lastError = "Không tìm thấy model phù hợp hoặc API Key không hợp lệ.";
 
-function getGeminiApiKey(): string {
-  const envKey = (import.meta.env as Record<string, string | undefined>).VITE_GEMINI_API_KEY;
-  const localKey =
-    typeof window !== "undefined" ? localStorage.getItem("kalolab_gemini_key") || "" : "";
-  return (envKey || localKey || FALLBACK_DEV_KEY).trim();
-}
+  const userParts: Array<
+    { text: string } | { inline_data: { mime_type: string; data: string } }
+  > = [{ text: userPrompt }];
+
+  if (imageBase64) {
+    const match = imageBase64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (match) {
+      userParts.push({
+        inline_data: {
+          mime_type: match[1],
+          data: match[2],
+        },
+      });
+    }
+  }
+
+  const requestBody = {
+    system_instruction: {
+      parts: [{ text: systemPrompt }],
+    },
+    contents: [
+      {
+        role: "user",
+        parts: userParts,
+      },
+    ],
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 8192,
+    },
+  };
+
+  for (const model of MODELS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": geminiKey,
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return { text, usedModel: model };
+        lastError = `Model ${model} trả về nội dung rỗng.`;
+        continue;
+      }
+
+      const errData = await response.json().catch(() => ({}));
+      const errMsg = errData.error?.message || `HTTP ${response.status}`;
+      lastError = `[${model}] ${errMsg}`;
+
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`API Key bị từ chối (${response.status}): ${errMsg}`);
+      }
+    } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === "AbortError") {
+        lastError = `[${model}] Hết thời gian chờ (30s).`;
+        continue;
+      }
+      if (err instanceof Error && err.message.startsWith("API Key bị từ chối")) {
+        throw err;
+      }
+      lastError = err instanceof Error ? `[${model}] ${err.message}` : lastError;
+    }
+  }
+
+  throw new Error(lastError);
+};
+
 
 const KALOLAB_SYSTEM_PROMPT = `Bạn là Kalolab — chuyên gia dinh dưỡng AI trẻ trung, tinh tế, nói tiếng Việt tự nhiên như một người bạn am hiểu sức khỏe (xưng "mình", gọi người dùng là "bạn").
 
