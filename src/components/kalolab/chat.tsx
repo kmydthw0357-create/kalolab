@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import {
   MessageCircle,
   X,
@@ -7,9 +6,8 @@ import {
   Sparkles,
   UserRound,
   Calendar,
-  ImagePlus,
-  LoaderCircle,
-  Trash2,
+  RotateCcw,
+  Loader2,
 } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -20,130 +18,519 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { localDay, type Profile } from "@/lib/kalolab";
+import { chatReply, localDay, type Profile } from "@/lib/kalolab";
+
+type TabType = "ai" | "expert";
 
 type Message = {
+  id: string;
   text: string;
-  user: boolean;
-  image?: string;
+  role: "user" | "assistant";
+  time: string;
 };
 
-const FAQ = [
-  "Buổi sáng tôi nên ăn gì?",
-  "Tôi nên ăn loại rau nào tốt nhất?",
-  "Nên chọn thịt bò hay thịt lợn?",
-  "Một ngày tôi cần bao nhiêu calo?",
-  "Làm sao để giảm cân lành mạnh?",
-  "Ăn gì để tăng cơ hiệu quả?",
+const messageSchema = z
+  .string()
+  .trim()
+  .min(1, "Vui lòng nhập nội dung tin nhắn")
+  .max(1000, "Tin nhắn tối đa 1000 ký tự");
+
+const bookingSchema = z.object({
+  date: z.string().min(1, "Vui lòng chọn ngày tư vấn"),
+  time: z.string().min(1, "Vui lòng chọn khung giờ"),
+  note: z.string().max(300).optional(),
+});
+
+const QUICK_PROMPTS = [
+  "Gợi ý thực đơn hôm nay",
+  "Bữa tối dưới 500 kcal",
+  "Đồ ăn vặt lành mạnh",
+  "Cách tăng lượng đạm",
 ];
 
-const INITIAL_AI: Message[] = [
+const TIME_SLOTS = ["09:00", "10:30", "14:00", "16:00", "19:30"];
+
+function nowTime() {
+  return new Date().toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function createId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+const INITIAL_AI_MESSAGES: Message[] = [
   {
-    text:
-      "Xin chào! Mình là Kalolab AI 🌱\n\n" +
-      "Mình có thể đồng hành cùng bạn trong hành trình ăn uống và sống khỏe:\n\n" +
-      "🥗 Gợi ý thực đơn theo mục tiêu.\n" +
-      "🔥 Tính toán calo và hàm lượng dinh dưỡng.\n" +
-      "📸 Phân tích ảnh bữa ăn của bạn.\n" +
-      "💪 Tư vấn giảm cân, tăng cơ và ăn uống cân bằng.\n\n" +
-      "Bạn muốn bắt đầu từ đâu hôm nay?",
-    user: false,
+    id: "ai-welcome",
+    text: "Chào bạn, mình là trợ lý AI Kalolab 🌱 Hôm nay bạn muốn ăn gì? Mình có thể gợi ý món ăn, tính calo hoặc điều chỉnh dinh dưỡng theo hồ sơ của bạn.",
+    role: "assistant",
+    time: nowTime(),
   },
 ];
 
-export function Chat({ profile }: { profile: Profile | null }) {
+const INITIAL_EXPERT_MESSAGES: Message[] = [
+  {
+    id: "expert-welcome",
+    text: "Chào bạn! Bạn có thể để lại câu hỏi hoặc đặt lịch tư vấn trực tiếp 1-1 với chuyên gia dinh dưỡng Kalolab.",
+    role: "assistant",
+    time: nowTime(),
+  },
+];
+
+/**
+ * Gọi API AI thật (nếu bạn đã cấu hình endpoint /api/chat),
+ * nếu chưa có backend sẽ tự động fallback về hàm chatReply() cục bộ.
+ */
+async function fetchAIReply(
+  prompt: string,
+  history: Message[],
+  profile: Profile | null,
+  apiEndpoint?: string
+): Promise<string> {
+  if (apiEndpoint) {
+    try {
+      const res = await fetch(apiEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: prompt,
+          profile,
+          history: history.slice(-6).map((m) => ({
+            role: m.role,
+            content: m.text,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      if (typeof data.reply === "string" && data.reply.trim()) {
+        return data.reply;
+      }
+    } catch {
+      // Fallback sang logic local nếu gọi API lỗi
+    }
+  }
+
+  // Tạo độ trễ tự nhiên cho trải nghiệm chat AI
+  await new Promise((resolve) => setTimeout(resolve, 450));
+  return chatReply(prompt, profile);
+}
+
+interface ChatProps {
+  profile: Profile | null;
+  /** Truyền URL backend AI nếu muốn dùng LLM thật (VD: "/api/chat") */
+  apiEndpoint?: string;
+}
+
+export function Chat({ profile, apiEndpoint }: ChatProps) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState("AI Kalolab");
+  const [tab, setTab] = useState<TabType>("ai");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [ai, setAi] = useState<Message[]>(INITIAL_AI);
+  const [aiMessages, setAiMessages] = useState<Message[]>(INITIAL_AI_MESSAGES);
+  const [expertMessages, setExpertMessages] = useState<Message[]>(
+    INITIAL_EXPERT_MESSAGES
+  );
 
-  const [expert, setExpert] = useState<Message[]>([
-    {
-      text:
-        "Chào bạn! Đây là cuộc trò chuyện minh họa với chuyên gia dinh dưỡng. " +
-        "Bạn muốn trao đổi về mục tiêu nào?",
-      user: false,
-    },
-  ]);
-
-  const [booking, setBooking] = useState(false);
-  const [date, setDate] = useState("");
+  // State đặt lịch chuyên gia
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [date, setDate] = useState(() => localDay());
   const [time, setTime] = useState("09:00");
+  const [note, setNote] = useState("");
 
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const list = useRef<HTMLDivElement>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const currentMessages = tab === "ai" ? aiMessages : expertMessages;
 
+  // Tự động cuộn xuống cuối khi có tin nhắn mới
   useEffect(() => {
-    list.current?.scrollTo({
-      top: list.current.scrollHeight,
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [ai, expert, tab, open, loading]);
+  }, [aiMessages, expertMessages, tab, open, loading]);
 
-  // Chuyển ảnh thành Base64 để gửi lên API
-  function readImage(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          resolve(reader.result);
-        } else {
-          reject(new Error("Không thể đọc ảnh."));
-        }
-      };
-
-      reader.onerror = () => reject(new Error("Lỗi đọc ảnh."));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function handleImage(file?: File) {
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Vui lòng chọn một hình ảnh.");
-      return;
+  // Tự động focus ô nhập khi mở khung chat
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
+  }, [open, tab]);
 
-    if (file.size > 8 * 1024 * 1024) {
-      toast.error("Ảnh không được vượt quá 8MB.");
-      return;
-    }
-
-    setImage(file);
-
-    const preview = URL.createObjectURL(file);
-    setImagePreview(preview);
-  }
-
-  function removeImage() {
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImage(null);
-    setImagePreview("");
-
-    if (fileInput.current) {
-      fileInput.current.value = "";
-    }
-  }
-
-  // Gửi tin nhắn tới OpenAI thông qua máy chủ bảo mật
-  async function send() {
+  async function sendMessage(rawText?: string) {
     if (loading) return;
 
-    const parsed = z.string().trim().max(1000).safeParse(input);
-    if (!parsed.success) return;
+    const textToSend = rawText ?? input;
+    const parsed = messageSchema.safeParse(textToSend);
 
-    const message = parsed.data;
-    const currentImage = image;
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Tin nhắn không hợp lệ");
+      return;
+    }
 
-    if (!message && !currentImage) return;
+    const userMsg: Message = {
+      id: createId(),
+      text: parsed.data,
+      role: "user",
+      time: nowTime(),
+    };
 
+    const activeTab = tab;
+    const setter = activeTab === "ai" ? setAiMessages : setExpertMessages;
+
+    setter((prev) => [...prev, userMsg]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      let replyText: string;
+
+      if (activeTab === "ai") {
+        replyText = await fetchAIReply(
+          parsed.data,
+          aiMessages,
+          profile,
+          apiEndpoint
+        );
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        replyText =
+          "Cảm ơn bạn đã chia sẻ. Hãy bấm nút \"Đặt lịch\" phía trên để chọn khung giờ phù hợp và chuẩn bị thông tin mục tiêu sức khỏe cho buổi tư vấn nhé.";
+      }
+
+      const botMsg: Message = {
+        id: createId(),
+        text: replyText,
+        role: "assistant",
+        time: nowTime(),
+      };
+
+      setter((prev) => [...prev, botMsg]);
+    } catch {
+      toast.error("Không thể phản hồi lúc này. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    void sendMessage();
+  }
+
+  function handleReset() {
+    if (tab === "ai") {
+      setAiMessages([
+        {
+          ...INITIAL_AI_MESSAGES[0],
+          id: createId(),
+          time: nowTime(),
+        },
+      ]);
+    } else {
+      setExpertMessages([
+        {
+          ...INITIAL_EXPERT_MESSAGES[0],
+          id: createId(),
+          time: nowTime(),
+        },
+      ]);
+    }
+    toast.success("Đã làm mới cuộc trò chuyện");
+  }
+
+  function handleBookingSubmit(e: FormEvent) {
+    e.preventDefault();
+    const parsed = bookingSchema.safeParse({ date, time, note });
+
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Thông tin chưa hợp lệ");
+      return;
+    }
+
+    if (parsed.data.date < localDay()) {
+      toast.error("Vui lòng chọn ngày từ hôm nay trở đi");
+      return;
+    }
+
+    setBookingOpen(false);
+    setExpertMessages((prev) => [
+      ...prev,
+      {
+        id: createId(),
+        role: "assistant",
+        time: nowTime(),
+        text: `Đã ghi nhận yêu cầu đặt lịch tư vấn vào ${parsed.data.time} ngày ${parsed.data.date}${
+          parsed.data.note ? ` (Ghi chú: ${parsed.data.note})` : ""
+        }. Chuyên gia sẽ sớm liên hệ xác nhận với bạn!`,
+      },
+    ]);
+    setNote("");
+    toast.success("Đặt lịch tư vấn thành công!");
+  }
+
+  return (
+    <>
+      {/* Nút mở chat nổi */}
+      <Button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? "Đóng trò chuyện" : "Chat với Kalolab"}
+        className="fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full shadow-lg transition-transform hover:scale-105"
+      >
+        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {!open && (
+          <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-white" />
+        )}
+      </Button>
+
+      {/* Khung chat */}
+      {open && (
+        <section
+          aria-label="Trò chuyện Kalolab"
+          className="fixed bottom-24 right-5 z-50 flex h-[540px] w-[360px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b bg-primary px-4 py-3 text-primary-foreground">
+            <div>
+              <h3 className="text-sm font-semibold leading-tight">
+                Kalolab AI Assistant
+              </h3>
+              <p className="text-xs opacity-85">
+                {tab === "ai"
+                  ? "Tư vấn dinh dưỡng thông minh 24/7"
+                  : "Kết nối chuyên gia dinh dưỡng"}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15"
+                aria-label="Làm mới đoạn chat"
+                onClick={handleReset}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15"
+                aria-label="Đóng khung chat"
+                onClick={() => setOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Thanh chuyển tab */}
+          <div className="flex items-center justify-between gap-2 border-b bg-muted/40 p-2">
+            <div className="flex flex-1 gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={tab === "ai" ? "secondary" : "ghost"}
+                className="flex-1 gap-1.5 text-xs"
+                onClick={() => setTab("ai")}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                AI Kalolab
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={tab === "expert" ? "secondary" : "ghost"}
+                className="flex-1 gap-1.5 text-xs"
+                onClick={() => setTab("expert")}
+              >
+                <UserRound className="h-3.5 w-3.5" />
+                Chuyên gia
+              </Button>
+            </div>
+
+            {tab === "expert" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1 text-xs"
+                onClick={() => setBookingOpen(true)}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                Đặt lịch
+              </Button>
+            )}
+          </div>
+
+          {/* Danh sách tin nhắn */}
+          <div
+            ref={listRef}
+            className="flex-1 space-y-3 overflow-y-auto px-4 py-3"
+          >
+            {currentMessages.map((msg) => {
+              const isUser = msg.role === "user";
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex flex-col ${
+                    isUser ? "items-end" : "items-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-[82%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                      isUser
+                        ? "rounded-br-sm bg-primary text-primary-foreground"
+                        : "rounded-bl-sm bg-muted text-foreground"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                  <span className="mt-1 px-1 text-[10px] text-muted-foreground">
+                    {msg.time}
+                  </span>
+                </div>
+              );
+            })}
+
+            {loading && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>
+                  {tab === "ai"
+                    ? "Kalolab AI đang suy nghĩ..."
+                    : "Đang gửi tin nhắn..."}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Gợi ý nhanh cho tab AI */}
+          {tab === "ai" && !loading && (
+            <div className="flex gap-1.5 overflow-x-auto border-t bg-muted/20 px-3 py-2">
+              {QUICK_PROMPTS.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => void sendMessage(q)}
+                  className="shrink-0 rounded-full border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Ô nhập tin nhắn */}
+          <form
+            onSubmit={handleSubmit}
+            className="flex items-center gap-2 border-t bg-background p-3"
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={loading}
+              maxLength={1000}
+              placeholder={
+                tab === "ai"
+                  ? "Hỏi về món ăn, calo, dinh dưỡng..."
+                  : "Nhắn tin cho chuyên gia..."
+              }
+              className="flex-1 rounded-full border bg-muted/40 px-3.5 py-2 text-sm outline-none focus:border-primary"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={loading || !input.trim()}
+              aria-label="Gửi tin nhắn"
+              className="h-9 w-9 shrink-0 rounded-full"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        </section>
+      )}
+
+      {/* Dialog đặt lịch chuyên gia */}
+      <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogTitle>Đặt lịch tư vấn dinh dưỡng</DialogTitle>
+          <DialogDescription>
+            Chọn ngày và khung giờ phù hợp để trao đổi 1-1 với chuyên gia Kalolab.
+          </DialogDescription>
+
+          <form onSubmit={handleBookingSubmit} className="mt-2 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="booking-date">
+                Ngày tư vấn
+              </label>
+              <input
+                id="booking-date"
+                type="date"
+                min={localDay()}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">Khung giờ</span>
+              <div className="grid grid-cols-3 gap-2">
+                {TIME_SLOTS.map((slot) => (
+                  <Button
+                    key={slot}
+                    type="button"
+                    size="sm"
+                    variant={time === slot ? "default" : "outline"}
+                    onClick={() => setTime(slot)}
+                  >
+                    {slot}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="booking-note">
+                Mục tiêu / ghi chú (không bắt buộc)
+              </label>
+              <textarea
+                id="booking-note"
+                rows={2}
+                maxLength={300}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="VD: Giảm 3kg trong 1 tháng, ăn chay trường..."
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setBookingOpen(false)}
+              >
+                Hủy
+              </Button>
+              <Button type="submit">Xác nhận đặt lịch</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
     // Chế độ chuyên gia giữ nguyên chức năng cũ
     if (tab === "Chuyên gia") {
       setExpert((prev) => [
