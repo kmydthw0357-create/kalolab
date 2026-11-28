@@ -360,3 +360,195 @@ export function chatReply(text: string, profile: Profile | null) {
     return "Bữa sáng: granola & trái cây ~310 kcal. Bữa trưa: gà nghệ & cơm gạo lứt ~465 kcal. Bữa tối: ức gà luộc & khoai lang ~395 kcal. Các số liệu là ước lượng.";
   return "Chào bạn! Bạn muốn chọn bữa sáng, trưa hay tối? Mình có thể gợi ý món, lượng calo hoặc bữa ăn theo mục tiêu của bạn.";
 }
+// ================== GEMINI AI CHAT (GIAO TIẾP TỰ NHIÊN) ==================
+
+export type ChatHistoryItem = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type KalolabNutrition = {
+  foodName: string;
+  servingSize: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  healthScore: "Rất tốt" | "Cân bằng" | "Nên ăn vừa phải";
+  advice: string;
+};
+
+export type KalolabAIResponse = {
+  reply: string;
+  nutrition?: KalolabNutrition;
+};
+
+// Ưu tiên lấy key từ .env. Nếu Lovable khóa không cho sửa .env,
+// bạn có thể dán tạm key AIza... vào giữa 2 dấu "" để chạy test ngay
+// (lưu ý: không bấm Publish công khai khi còn để key trực tiếp ở đây).
+const FALLBACK_DEV_KEY = "";
+
+const KALOLAB_SYSTEM_PROMPT = `Bạn là Kalolab — chuyên gia dinh dưỡng AI trẻ trung, tinh tế, nói tiếng Việt tự nhiên như một người bạn am hiểu sức khỏe (xưng "mình", gọi người dùng là "bạn").
+
+PHONG CÁCH GIAO TIẾP:
+1. Tự nhiên, đời thường, ứng biến linh hoạt, không máy móc hay giáo điều. Khi người dùng chào hỏi, than mệt, tâm sự chuyện ăn uống ("trời mưa thèm lẩu quá", "nay lỡ ăn hơi nhiều"), hãy đồng cảm, trò chuyện thân thiện/dí dỏm trước rồi mới tư vấn thực tế.
+2. Trả lời linh hoạt mọi câu hỏi ngẫu nhiên hằng ngày lẫn chuyên sâu về dinh dưỡng (giảm mỡ, tăng cơ, tính calo/macro, đồ ăn ngoài quán Việt Nam, dạ dày, tập gym, ăn chay, giấc ngủ...).
+3. Ngắn gọn, dễ đọc (3–6 dòng cho câu hỏi thường; chi tiết hơn khi người dùng xin thực đơn hoặc phân tích sâu). Khi hợp lý, kết thúc bằng 1 câu hỏi gợi mở tự nhiên để nối mạch trò chuyện.
+4. Nếu người dùng hỏi chuyện ngoài lề dinh dưỡng, vẫn trò chuyện duyên dáng vài câu chứ không từ chối cứng nhắc, rồi khéo léo kết nối lại với sức khỏe nếu phù hợp.
+5. Tự cá nhân hóa theo Hồ sơ & Chỉ số (BMI, TDEE, mục tiêu calo/đạm) được cung cấp mà không đọc lại nguyên xi số liệu trừ khi cần thiết.
+
+ĐẦU RA BẮT BUỘC LÀ JSON HỢP LỆ THEO ĐÚNG CẤU TRÚC:
+{
+  "reply": "Nội dung trả lời tự nhiên bằng tiếng Việt (dùng \\n để xuống dòng)",
+  "nutrition": null hoặc {
+    "foodName": "Tên món ăn cụ thể",
+    "servingSize": "Khẩu phần ước tính (VD: 1 tô vừa ~500g)",
+    "calories": 450,
+    "protein": 25,
+    "carbs": 50,
+    "fat": 15,
+    "fiber": 4,
+    "healthScore": "Rất tốt" | "Cân bằng" | "Nên ăn vừa phải",
+    "advice": "1-2 câu góp ý thực tế cho bữa ăn này"
+  }
+}
+
+QUY TẮC CHO "nutrition":
+- Điền đầy đủ khi người dùng gửi ẢNH MÓN ĂN hoặc hỏi trực tiếp calo/dinh dưỡng của 1 món cụ thể.
+- Để null khi trò chuyện bình thường, tâm sự, gợi ý nhiều món hoặc ảnh không phải đồ ăn.`;
+
+export async function askKalolabAI(params: {
+  message: string;
+  image: string | null;
+  profile: Profile | null;
+  history: ChatHistoryItem[];
+  apiEndpoint?: string;
+  signal?: AbortSignal;
+}): Promise<KalolabAIResponse> {
+  const { message, image, profile, history, apiEndpoint, signal } = params;
+
+  const envKey = (import.meta.env as Record<string, string | undefined>)
+    .VITE_GEMINI_API_KEY;
+  const geminiKey = (envKey || FALLBACK_DEV_KEY).trim();
+
+  // 1. Nếu không có Gemini key ở frontend nhưng có backend riêng
+  if (!geminiKey && apiEndpoint) {
+    const res = await fetch(apiEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({ message, image, profile, history }),
+    });
+    if (!res.ok) throw new Error(`Backend HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data?.reply) throw new Error("Empty backend reply");
+    return {
+      reply: String(data.reply).trim(),
+      nutrition: data.nutrition ?? undefined,
+    };
+  }
+
+  if (!geminiKey) {
+    throw new Error("Chưa gắn VITE_GEMINI_API_KEY");
+  }
+
+  // 2. Chuẩn hóa lịch sử chat (Gemini yêu cầu lượt đầu tiên là "user" và xen kẽ user/model)
+  const contents: Array<{
+    role: "user" | "model";
+    parts: Array<Record<string, unknown>>;
+  }> = [];
+
+  for (const item of history.slice(-10)) {
+    const role = item.role === "user" ? "user" : "model";
+    const text = item.content?.trim();
+    if (!text) continue;
+    if (contents.length === 0 && role === "model") continue;
+
+    const prev = contents[contents.length - 1];
+    if (prev && prev.role === role) {
+      prev.parts.push({ text });
+    } else {
+      contents.push({ role, parts: [{ text }] });
+    }
+  }
+
+  if (contents[contents.length - 1]?.role === "user") {
+    contents.pop();
+  }
+
+  // Đính kèm hồ sơ + chỉ số tính sẵn từ calcPlan để AI tư vấn sát thực tế
+  let profileContext = "";
+  if (profile) {
+    try {
+      const plan = calcPlan(profile);
+      profileContext = `[Hồ sơ: ${JSON.stringify(profile)} | Chỉ số: BMI ${plan.bmi} (${plan.bmiLabel}), TDEE ${plan.tdee} kcal, Mục tiêu ${plan.target} kcal/ngày, Đạm ${plan.protein}g, Nước ${plan.water}L]`;
+    } catch {
+      profileContext = `[Hồ sơ: ${JSON.stringify(profile)}]`;
+    }
+  }
+
+  const userParts: Array<Record<string, unknown>> = [
+    {
+      text: [
+        profileContext,
+        message || "Phân tích món ăn trong ảnh này giúp mình nhé.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    },
+  ];
+
+  if (image && image.startsWith("data:image/")) {
+    const [meta, base64] = image.split(",");
+    const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
+    userParts.push({
+      inline_data: { mime_type: mimeType, data: base64 },
+    });
+  }
+
+  contents.push({ role: "user", parts: userParts });
+
+  // 3. Gọi Gemini 2.5 Flash
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: KALOLAB_SYSTEM_PROMPT }] },
+        contents,
+        generationConfig: {
+          temperature: 0.85,
+          topP: 0.95,
+          responseMimeType: "application/json",
+        },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Gemini HTTP ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json();
+  const rawText: string =
+    data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  if (!rawText) throw new Error("Gemini trả về rỗng");
+
+  try {
+    const cleaned = rawText
+      .replace(/^```json\s*/i, "")
+      .replace(/```$/i, "")
+      .trim();
+    const parsed = JSON.parse(cleaned);
+    return {
+      reply: String(parsed.reply || rawText).trim(),
+      nutrition: parsed.nutrition ?? undefined,
+    };
+  } catch {
+    return { reply: rawText.trim() };
+  }
+}
