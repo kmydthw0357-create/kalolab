@@ -374,7 +374,7 @@ export function chatReply(text: string, profile: Profile | null) {
   )
     return "Với bệnh lý hoặc dị ứng, bạn nên trao đổi với bác sĩ/chuyên gia trước khi chọn món. Bạn có thể tham khảo ức gà luộc, chọn ít muối và ít đường; hãy xác nhận thành phần với bếp. Đây không phải tư vấn y khoa.";
   if (/bmi|giảm|cân/.test(t))
-    return `${profile ? `BMI của bạn là ${bmi(profile.height, profile.weight)}. ${bmiAdvice(bmi(profile.height, profile.weight))}` : "Bạn có thể cập nhật chiều cao và cân nặng trong hồ sơ."} Gợi ý: Ức gà nướng & rau củ (khoảng 410 kcal), hoặc ức gà luộc & khoai lang (395 kcal).`;
+    return `${profile ? `BMI của bạn là ${bmi(profile.height, profile.weight)}.${bmiAdvice(bmi(profile.height, profile.weight))}` : "Bạn có thể cập nhật chiều cao và cân nặng trong hồ sơ."} Gợi ý: Ức gà nướng & rau củ (khoảng 410 kcal), hoặc ức gà luộc & khoai lang (395 kcal).`;
   if (/đạm|gym|cơ|protein/.test(t))
     return "Cá hồi áp chảo có khoảng 38g đạm; ức gà nướng có khoảng 36g đạm. Kết hợp vận động và khẩu phần phù hợp với bạn nhé.";
   if (/calo|kcal|thực đơn|món/.test(t))
@@ -422,92 +422,6 @@ function getGeminiApiKey(): string {
     typeof window !== "undefined" ? localStorage.getItem("kalolab_gemini_key") || "" : "";
   return (envKey || localKey || FALLBACK_DEV_KEY).trim();
 }
-
-  let lastError = "Không tìm thấy model phù hợp hoặc API Key không hợp lệ.";
-
-  const userParts: Array<
-    { text: string } | { inline_data: { mime_type: string; data: string } }
-  > = [{ text: userPrompt }];
-
-  if (imageBase64) {
-    const match = imageBase64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-    if (match) {
-      userParts.push({
-        inline_data: {
-          mime_type: match[1],
-          data: match[2],
-        },
-      });
-    }
-  }
-
-  const requestBody = {
-    system_instruction: {
-      parts: [{ text: systemPrompt }],
-    },
-    contents: [
-      {
-        role: "user",
-        parts: userParts,
-      },
-    ],
-    generationConfig: {
-      temperature: 0.4,
-      maxOutputTokens: 8192,
-    },
-  };
-
-  for (const model of MODELS) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": geminiKey,
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        }
-      );
-
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return { text, usedModel: model };
-        lastError = `Model ${model} trả về nội dung rỗng.`;
-        continue;
-      }
-
-      const errData = await response.json().catch(() => ({}));
-      const errMsg = errData.error?.message || `HTTP ${response.status}`;
-      lastError = `[${model}] ${errMsg}`;
-
-      if (response.status === 401 || response.status === 403) {
-        throw new Error(`API Key bị từ chối (${response.status}): ${errMsg}`);
-      }
-    } catch (err: unknown) {
-      clearTimeout(timeoutId);
-      if (err instanceof Error && err.name === "AbortError") {
-        lastError = `[${model}] Hết thời gian chờ (30s).`;
-        continue;
-      }
-      if (err instanceof Error && err.message.startsWith("API Key bị từ chối")) {
-        throw err;
-      }
-      lastError = err instanceof Error ? `[${model}] ${err.message}` : lastError;
-    }
-  }
-
-  throw new Error(lastError);
-};
-
 
 const KALOLAB_SYSTEM_PROMPT = `Bạn là Kalolab — chuyên gia dinh dưỡng AI trẻ trung, tinh tế, nói tiếng Việt tự nhiên như một người bạn am hiểu sức khỏe (xưng "mình", gọi người dùng là "bạn").
 
@@ -615,9 +529,11 @@ export async function askKalolabAI(params: {
   if (image && image.startsWith("data:image/")) {
     const [meta, base64] = image.split(",");
     const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
-    userParts.push({
-      inline_data: { mime_type: mimeType, data: base64 },
-    });
+    if (base64) {
+      userParts.push({
+        inline_data: { mime_type: mimeType, data: base64 },
+      });
+    }
   }
 
   contents.push({ role: "user", parts: userParts });
@@ -630,60 +546,86 @@ export async function askKalolabAI(params: {
       throw new DOMException("Aborted", "AbortError");
     }
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": geminiKey,
-        },
-        signal,
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: KALOLAB_SYSTEM_PROMPT }] },
-          contents,
-          generationConfig: {
-            temperature: 0.85,
-            topP: 0.95,
-            responseMimeType: "application/json",
-          },
-        }),
-      },
-    );
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      lastError = `${model} HTTP ${res.status}: ${errText}`;
-      console.warn("[Kalolab AI]", lastError);
-      continue;
-    }
-
-    const data = await res.json();
-    const parts: Array<{ text?: string; thought?: boolean }> =
-      data?.candidates?.[0]?.content?.parts ?? [];
-    const rawText = parts
-      .filter((p) => typeof p.text === "string" && !p.thought)
-      .map((p) => p.text)
-      .join("")
-      .trim();
-
-    if (!rawText) {
-      lastError = `${model} trả về rỗng`;
-      continue;
-    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const onAbort = () => controller.abort();
+    signal?.addEventListener("abort", onAbort, { once: true });
 
     try {
-      const cleaned = rawText
-        .replace(/^```json\s*/i, "")
-        .replace(/```$/i, "")
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": geminiKey,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: KALOLAB_SYSTEM_PROMPT }] },
+            contents,
+            generationConfig: {
+              temperature: 0.85,
+              topP: 0.95,
+              responseMimeType: "application/json",
+            },
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const errMsg = errData?.error?.message || `HTTP ${res.status}`;
+        lastError = `[${model}] ${errMsg}`;
+        console.warn("[Kalolab AI]", lastError);
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(`API Key bị từ chối (${res.status}): ${errMsg}`);
+        }
+        continue;
+      }
+
+      const data = await res.json();
+      const parts: Array<{ text?: string; thought?: boolean }> =
+        data?.candidates?.[0]?.content?.parts ?? [];
+      const rawText = parts
+        .filter((p) => typeof p.text === "string" && !p.thought)
+        .map((p) => p.text)
+        .join("")
         .trim();
-      const parsed = JSON.parse(cleaned);
-      return {
-        reply: String(parsed.reply || rawText).trim(),
-        nutrition: parsed.nutrition ?? undefined,
-      };
-    } catch {
-      return { reply: rawText };
+
+      if (!rawText) {
+        lastError = `[${model}] trả về rỗng`;
+        continue;
+      }
+
+      try {
+        const cleaned = rawText
+          .replace(/^```json\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/```$/i, "")
+          .trim();
+        const parsed = JSON.parse(cleaned);
+        return {
+          reply: String(parsed.reply || rawText).trim(),
+          nutrition: parsed.nutrition ?? undefined,
+        };
+      } catch {
+        return { reply: rawText };
+      }
+    } catch (err: unknown) {
+      if (signal?.aborted) throw err;
+      if (err instanceof Error && err.name === "AbortError") {
+        lastError = `[${model}] Hết thời gian chờ (20s)`;
+        continue;
+      }
+      if (err instanceof Error && err.message.startsWith("API Key bị từ chối")) {
+        throw err;
+      }
+      lastError = err instanceof Error ? `[${model}] ${err.message}` : lastError;
+      console.warn("[Kalolab AI]", lastError);
+    } finally {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", onAbort);
     }
   }
 
