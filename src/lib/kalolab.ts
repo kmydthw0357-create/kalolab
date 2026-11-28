@@ -26,6 +26,7 @@ export type Meal = {
   badge: string;
   servings: number;
 };
+
 export const meals: Meal[] = [
   {
     id: 1,
@@ -182,6 +183,7 @@ export const meals: Meal[] = [
     servings: 1,
   },
 ];
+
 export const customization = [
   "Ít muối",
   "Ít đường",
@@ -189,15 +191,19 @@ export const customization = [
   "Cheatmeal (+15.000đ)",
   "Không hành tỏi",
 ];
+
 export const money = (n: number) => new Intl.NumberFormat("vi-VN").format(n) + "đ";
+
 export const bmi = (height: number, weight: number) =>
   height > 0 && weight > 0 ? Math.round((weight / (height / 100) ** 2) * 10) / 10 : 0;
+
 export function bmiAdvice(value: number) {
   if (!value) return "Hoàn thiện hồ sơ để nhận gợi ý riêng.";
   if (value < 18.5) return "BMI thấp · Ưu tiên bữa ăn đủ năng lượng và đạm.";
   if (value < 25) return "BMI trong khoảng tham khảo · Duy trì bữa ăn cân bằng.";
   return "BMI cao · Ưu tiên rau xanh, chất đạm và khẩu phần phù hợp.";
 }
+
 export const profileSchema = z.object({
   name: z.string().trim().min(2, "Họ tên cần ít nhất 2 ký tự").max(100),
   phone: z.string().regex(/^0\d{9}$/, "Số điện thoại cần 10 chữ số, bắt đầu bằng 0"),
@@ -208,6 +214,7 @@ export const profileSchema = z.object({
   weight: z.number().min(20).max(300),
   health: z.string().max(300),
 });
+
 export type Profile = z.infer<typeof profileSchema>;
 export type CartItem = { key: string; mealId: number; quantity: number; options: string[] };
 export type Voucher = {
@@ -216,12 +223,14 @@ export type Voucher = {
   kind: "amount" | "percent" | "shipping" | "juice";
   value: number;
 };
+
 export const baseVoucher: Voucher = {
   code: "KALOLAB20",
   label: "Giảm 20% đơn hàng",
   kind: "percent",
   value: 20,
 };
+
 export const prizes: Omit<Voucher, "code">[] = [
   { label: "Giảm 10.000đ", kind: "amount", value: 10000 },
   { label: "Giảm 20.000đ", kind: "amount", value: 20000 },
@@ -230,6 +239,7 @@ export const prizes: Omit<Voucher, "code">[] = [
   { label: "Tặng 1 chai nước ép", kind: "juice", value: 0 },
   { label: "May mắn lần sau", kind: "amount", value: 0 },
 ];
+
 export function cartTotal(cart: CartItem[]) {
   return cart.reduce((sum, item) => {
     const m = meals.find((m) => m.id === item.mealId);
@@ -240,6 +250,7 @@ export function cartTotal(cart: CartItem[]) {
     );
   }, 0);
 }
+
 export function totals(cart: CartItem[], voucher: Voucher | null) {
   const subtotal = cartTotal(cart);
   const shipping = subtotal === 0 ? 0 : voucher?.kind === "shipping" ? 0 : 15000;
@@ -251,15 +262,18 @@ export function totals(cart: CartItem[], voucher: Voucher | null) {
         : 0;
   return { subtotal, shipping, discount, total: subtotal + shipping - discount };
 }
+
 export const localDay = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
+
 export function checkInReward(count: number): Voucher | null {
   return count > 0 && count % 7 === 0
     ? { code: `DIEMDANH${count}`, label: "Quà 7 ngày: giảm 20.000đ", kind: "amount", value: 20000 }
     : null;
 }
+
 export type Order = {
   id: string;
   date: string;
@@ -271,6 +285,7 @@ export type Order = {
   phone: string;
   gift: boolean;
 };
+
 export type Review = { mealId: number; name: string; rating: number; text: string };
 export type Account = { phone: string; hash: string; salt: string; profile: Profile };
 export type Store = {
@@ -282,6 +297,7 @@ export type Store = {
   checkins: string[];
   reviews: Review[];
 };
+
 export const initialStore: Store = {
   accounts: [],
   session: null,
@@ -291,18 +307,21 @@ export const initialStore: Store = {
   checkins: [],
   reviews: [],
 };
+
 const voucherSchema = z.object({
   code: z.string(),
   label: z.string(),
   kind: z.enum(["amount", "percent", "shipping", "juice"]),
   value: z.number().nonnegative(),
 });
+
 const itemSchema = z.object({
   key: z.string(),
   mealId: z.number().int().min(1).max(9),
   quantity: z.number().int().min(1).max(99),
   options: z.array(z.string()),
 });
+
 export const storeSchema = z.object({
   accounts: z.array(
     z.object({ phone: z.string(), hash: z.string(), salt: z.string(), profile: profileSchema }),
@@ -333,6 +352,7 @@ export const storeSchema = z.object({
     }),
   ),
 });
+
 export async function passwordHash(password: string, salt: string) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, [
@@ -345,6 +365,7 @@ export async function passwordHash(password: string, salt: string) {
   );
   return Array.from(new Uint8Array(bits), (b) => b.toString(16).padStart(2, "0")).join("");
 }
+
 export function chatReply(text: string, profile: Profile | null) {
   const t = text.toLowerCase();
   if (
@@ -360,6 +381,7 @@ export function chatReply(text: string, profile: Profile | null) {
     return "Bữa sáng: granola & trái cây ~310 kcal. Bữa trưa: gà nghệ & cơm gạo lứt ~465 kcal. Bữa tối: ức gà luộc & khoai lang ~395 kcal. Các số liệu là ước lượng.";
   return "Chào bạn! Bạn muốn chọn bữa sáng, trưa hay tối? Mình có thể gợi ý món, lượng calo hoặc bữa ăn theo mục tiêu của bạn.";
 }
+
 // ================== GEMINI AI CHAT (GIAO TIẾP TỰ NHIÊN) ==================
 
 export type ChatHistoryItem = {
@@ -384,20 +406,22 @@ export type KalolabAIResponse = {
   nutrition?: KalolabNutrition;
 };
 
-// Ưu tiên lấy key từ .env. Nếu Lovable khóa không cho sửa .env,
-// bạn có thể dán tạm key AIza... vào giữa 2 dấu "" để chạy test ngay
-// (lưu ý: không bấm Publish công khai khi còn để key trực tiếp ở const FALLBACK_DEV_KEY = "AIza...dán_mã_key_của_bạn_vào_đây";
-
-const API_KEY ="AQ.Ab8RN6K3MtXr7bP7anyRldtIllp0O5l0cW1Cyu_ORLfgbQsbIg"
-  (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
-  (typeof window !== "undefined" ? localStorage.getItem("kalolab_gemini_key") || "" : "") ||
-  FALLBACK_DEV_KEY.trim();
+// Key chạy test trên Lovable Preview (nên chuyển sang backend / Edge Function và đổi key mới trước khi Publish công khai)
+const FALLBACK_DEV_KEY = "AQ.Ab8RN6K3MtXr7bP7anyRldtIllp0O5l0cW1Cyu_ORLfgbQsbIg";
 
 const GEMINI_MODELS = [
   "gemini-3.5-flash-lite",
   "gemini-3.8-flash",
-  "gemini-3.1-flash-lite",
+  "gemini-3.6-flash",
+  "gemini-2.5-flash",
 ];
+
+function getGeminiApiKey(): string {
+  const envKey = (import.meta.env as Record<string, string | undefined>).VITE_GEMINI_API_KEY;
+  const localKey =
+    typeof window !== "undefined" ? localStorage.getItem("kalolab_gemini_key") || "" : "";
+  return (envKey || localKey || FALLBACK_DEV_KEY).trim();
+}
 
 const KALOLAB_SYSTEM_PROMPT = `Bạn là Kalolab — chuyên gia dinh dưỡng AI trẻ trung, tinh tế, nói tiếng Việt tự nhiên như một người bạn am hiểu sức khỏe (xưng "mình", gọi người dùng là "bạn").
 
@@ -406,7 +430,7 @@ PHONG CÁCH GIAO TIẾP:
 2. Trả lời linh hoạt mọi câu hỏi ngẫu nhiên hằng ngày lẫn chuyên sâu về dinh dưỡng (giảm mỡ, tăng cơ, tính calo/macro, đồ ăn ngoài quán Việt Nam, dạ dày, tập gym, ăn chay, giấc ngủ...).
 3. Ngắn gọn, dễ đọc (3–6 dòng cho câu hỏi thường; chi tiết hơn khi người dùng xin thực đơn hoặc phân tích sâu). Khi hợp lý, kết thúc bằng 1 câu hỏi gợi mở tự nhiên để nối mạch trò chuyện.
 4. Nếu người dùng hỏi chuyện ngoài lề dinh dưỡng, vẫn trò chuyện duyên dáng vài câu chứ không từ chối cứng nhắc, rồi khéo léo kết nối lại với sức khỏe nếu phù hợp.
-5. Tự cá nhân hóa theo Hồ sơ & Chỉ số (BMI, TDEE, mục tiêu calo/đạm) được cung cấp mà không đọc lại nguyên xi số liệu trừ khi cần thiết.
+5. Tự cá nhân hóa theo Hồ sơ & Chỉ số BMI được cung cấp mà không đọc lại nguyên xi số liệu trừ khi cần thiết.
 
 ĐẦU RA BẮT BUỘC LÀ JSON HỢP LỆ THEO ĐÚNG CẤU TRÚC:
 {
@@ -437,10 +461,7 @@ export async function askKalolabAI(params: {
   signal?: AbortSignal;
 }): Promise<KalolabAIResponse> {
   const { message, image, profile, history, apiEndpoint, signal } = params;
-
-  const envKey = (import.meta.env as Record<string, string | undefined>)
-    .VITE_GEMINI_API_KEY;
-  const geminiKey = (envKey || FALLBACK_DEV_KEY).trim();
+  const geminiKey = getGeminiApiKey();
 
   // 1. Nếu không có Gemini key ở frontend nhưng có backend riêng
   if (!geminiKey && apiEndpoint) {
@@ -487,15 +508,11 @@ export async function askKalolabAI(params: {
     contents.pop();
   }
 
-  // Đính kèm hồ sơ + chỉ số tính sẵn từ calcPlan để AI tư vấn sát thực tế
+  // Đính kèm hồ sơ + chỉ số BMI tính từ hàm có sẵn
   let profileContext = "";
   if (profile) {
-    try {
-      const plan = calcPlan(profile);
-      profileContext = `[Hồ sơ: ${JSON.stringify(profile)} | Chỉ số: BMI ${plan.bmi} (${plan.bmiLabel}), TDEE ${plan.tdee} kcal, Mục tiêu ${plan.target} kcal/ngày, Đạm ${plan.protein}g, Nước ${plan.water}L]`;
-    } catch {
-      profileContext = `[Hồ sơ: ${JSON.stringify(profile)}]`;
-    }
+    const bmiVal = bmi(profile.height, profile.weight);
+    profileContext = `[Hồ sơ: tên=${profile.name}, cao=${profile.height}cm, nặng=${profile.weight}kg, BMI=${bmiVal} (${bmiAdvice(bmiVal)}), tình trạng sức khỏe=${profile.health || "không ghi nhận"}]`;
   }
 
   const userParts: Array<Record<string, unknown>> = [
@@ -519,46 +536,70 @@ export async function askKalolabAI(params: {
 
   contents.push({ role: "user", parts: userParts });
 
-  // 3. Gọi Gemini 2.5 Flash
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal,
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: KALOLAB_SYSTEM_PROMPT }] },
-        contents,
-        generationConfig: {
-          temperature: 0.85,
-          topP: 0.95,
-          responseMimeType: "application/json",
-        },
-      }),
+  // 3. Thử lần lượt các model Gemini (truyền key qua header x-goog-api-key cho tương thích key AQ.)
+  let lastError = "Không thể kết nối Gemini API";
+
+  for (const model of GEMINI_MODELS) {
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
     }
-  );
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Gemini HTTP ${res.status}: ${errText}`);
-  }
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiKey,
+        },
+        signal,
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: KALOLAB_SYSTEM_PROMPT }] },
+          contents,
+          generationConfig: {
+            temperature: 0.85,
+            topP: 0.95,
+            responseMimeType: "application/json",
+          },
+        }),
+      },
+    );
 
-  const data = await res.json();
-  const rawText: string =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  if (!rawText) throw new Error("Gemini trả về rỗng");
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      lastError = `${model} HTTP ${res.status}: ${errText}`;
+      console.warn("[Kalolab AI]", lastError);
+      continue;
+    }
 
-  try {
-    const cleaned = rawText
-      .replace(/^```json\s*/i, "")
-      .replace(/```$/i, "")
+    const data = await res.json();
+    const parts: Array<{ text?: string; thought?: boolean }> =
+      data?.candidates?.[0]?.content?.parts ?? [];
+    const rawText = parts
+      .filter((p) => typeof p.text === "string" && !p.thought)
+      .map((p) => p.text)
+      .join("")
       .trim();
-    const parsed = JSON.parse(cleaned);
-    return {
-      reply: String(parsed.reply || rawText).trim(),
-      nutrition: parsed.nutrition ?? undefined,
-    };
-  } catch {
-    return { reply: rawText.trim() };
+
+    if (!rawText) {
+      lastError = `${model} trả về rỗng`;
+      continue;
+    }
+
+    try {
+      const cleaned = rawText
+        .replace(/^```json\s*/i, "")
+        .replace(/```$/i, "")
+        .trim();
+      const parsed = JSON.parse(cleaned);
+      return {
+        reply: String(parsed.reply || rawText).trim(),
+        nutrition: parsed.nutrition ?? undefined,
+      };
+    } catch {
+      return { reply: rawText };
+    }
   }
+
+  throw new Error(lastError);
 }
