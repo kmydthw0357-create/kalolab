@@ -27,11 +27,17 @@ export type Meal = {
   servings: number;
 };
 
+const LOVABLE_ASSET_HOST =
+  "https://id-preview--90c96ad1-7903-4888-be68-0e9aa380c93d.lovable.app";
+
+const assetUrl = (url: string) =>
+  url.startsWith("/__l5e/") ? `${LOVABLE_ASSET_HOST}${url}` : url;
+
 export const meals: Meal[] = [
   {
     id: 1,
     name: "Bánh mì bơ & tôm áp chảo",
-    image: a1806.url,
+    image: assetUrl(a1806.url),
     period: "Bữa sáng",
     goals: ["Giữ dáng", "Tăng cơ"],
     price: 69000,
@@ -48,7 +54,7 @@ export const meals: Meal[] = [
   {
     id: 2,
     name: "Bánh mì nguyên cám mứt dâu",
-    image: a1808.url,
+    image: assetUrl(a1808.url),
     period: "Bữa sáng",
     goals: ["Ăn chay", "Giữ dáng"],
     price: 39000,
@@ -65,7 +71,7 @@ export const meals: Meal[] = [
   {
     id: 3,
     name: "Sữa chua granola & trái cây",
-    image: a1809.url,
+    image: assetUrl(a1809.url),
     period: "Bữa sáng",
     goals: ["Ăn chay", "Giảm cân"],
     price: 49000,
@@ -82,7 +88,7 @@ export const meals: Meal[] = [
   {
     id: 4,
     name: "Cá hồi áp chảo & bơ tươi",
-    image: a1812.url,
+    image: assetUrl(a1812.url),
     period: "Bữa trưa",
     goals: ["Tăng cơ", "Giữ dáng"],
     price: 119000,
@@ -99,7 +105,7 @@ export const meals: Meal[] = [
   {
     id: 5,
     name: "Set dinh dưỡng cho 4 người",
-    image: a1813.url,
+    image: assetUrl(a1813.url),
     period: "Bữa trưa",
     goals: ["Tăng cơ", "Giữ dáng"],
     price: 329000,
@@ -117,7 +123,7 @@ export const meals: Meal[] = [
   {
     id: 6,
     name: "Gà nghệ & cơm gạo lứt",
-    image: a1814.url,
+    image: assetUrl(a1814.url),
     period: "Bữa trưa",
     goals: ["Tăng cơ", "Giữ dáng"],
     price: 79000,
@@ -134,7 +140,7 @@ export const meals: Meal[] = [
   {
     id: 7,
     name: "Ức gà nướng & rau củ",
-    image: a1815.url,
+    image: assetUrl(a1815.url),
     period: "Bữa tối",
     goals: ["Giảm cân", "Bệnh lý"],
     price: 79000,
@@ -151,7 +157,7 @@ export const meals: Meal[] = [
   {
     id: 8,
     name: "Ức gà luộc & khoai lang",
-    image: a1816.url,
+    image: assetUrl(a1816.url),
     period: "Bữa tối",
     goals: ["Giảm cân", "Tăng cơ", "Bệnh lý"],
     price: 75000,
@@ -168,7 +174,7 @@ export const meals: Meal[] = [
   {
     id: 9,
     name: "Bowl bò & rau xanh",
-    image: a1817.url,
+    image: assetUrl(a1817.url),
     period: "Bữa tối",
     goals: ["Tăng cơ", "Giữ dáng"],
     price: 89000,
