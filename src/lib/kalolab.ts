@@ -407,18 +407,21 @@ export type KalolabAIResponse = {
 };
 
 // Key chạy test trên Lovable Preview (nên chuyển sang backend / Edge Function và đổi key mới trước khi Publish công khai)
-const callGeminiWithFallback = async (
-  geminiKey: string,
-  systemPrompt: string,
-  userPrompt: string,
-  imageBase64?: string
-): Promise<{ text: string; usedModel: string }> => {
-  const MODELS = [
-    "gemini-3.5-flash-lite",
-    "gemini-3.8-flash",
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite",
-  ];
+const FALLBACK_DEV_KEY = "AQ.Ab8RN6K3MtXr7bP7anyRldtIllp0O5l0cW1Cyu_ORLfgbQsbIg";
+
+const GEMINI_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.8-flash",
+  "gemini-3.6-flash",
+  "gemini-3.1-flash-lite",
+];
+
+function getGeminiApiKey(): string {
+  const envKey = (import.meta.env as Record<string, string | undefined>).VITE_GEMINI_API_KEY;
+  const localKey =
+    typeof window !== "undefined" ? localStorage.getItem("kalolab_gemini_key") || "" : "";
+  return (envKey || localKey || FALLBACK_DEV_KEY).trim();
+}
 
   let lastError = "Không tìm thấy model phù hợp hoặc API Key không hợp lệ.";
 
