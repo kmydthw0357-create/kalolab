@@ -214,16 +214,12 @@ export function Chat({ profile, apiEndpoint }: ChatProps) {
           });
           replyText = aiResult.reply;
           nutritionInfo = aiResult.nutrition;
-        } catch (err) {
-          console.warn("[Kalolab AI fallback]:", err);
-          if (
-            err instanceof Error &&
-            err.message.includes("VITE_GEMINI_API_KEY")
-          ) {
-            toast.info(
-              "Chưa gắn Gemini API Key nên AI đang chạy chế độ ngoại tuyến."
-            );
-          }
+                } catch (err) {
+          console.warn("[Kalolab AI fallback]", err);
+          const errMsg = err instanceof Error ? err.message : "Lỗi kết nối AI";
+          toast.error(`AI tạm chuyển chế độ offline: ${errMsg}`);
+          replyText = chatReply(parsed.data, profile);
+        }
           await new Promise((resolve) => setTimeout(resolve, 350));
           replyText = chatReply(
             parsed.data || "Phân tích dinh dưỡng bữa ăn",
