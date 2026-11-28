@@ -387,7 +387,7 @@ export type KalolabAIResponse = {
 // Ưu tiên lấy key từ .env. Nếu Lovable khóa không cho sửa .env,
 // bạn có thể dán tạm key AIza... vào giữa 2 dấu "" để chạy test ngay
 // (lưu ý: không bấm Publish công khai khi còn để key trực tiếp ở đây).
-const FALLBACK_DEV_KEY = "";
+const FALLBACK_DEV_KEY = "AQ.Ab8RN6K3MtXr7bP7anyRldtIllp0O5l0cW1Cyu_ORLfgbQsbIg";
 
 const KALOLAB_SYSTEM_PROMPT = `Bạn là Kalolab — chuyên gia dinh dưỡng AI trẻ trung, tinh tế, nói tiếng Việt tự nhiên như một người bạn am hiểu sức khỏe (xưng "mình", gọi người dùng là "bạn").
 
